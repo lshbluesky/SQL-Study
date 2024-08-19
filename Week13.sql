@@ -1,0 +1,213 @@
+-- Week13
+SET SERVEROUTPUT ON;
+SHOW ERRORS;
+
+-- EMP 테이블을 복사하여 N_EMP 테이블을 생성
+CREATE TABLE N_EMP
+AS SELECT * FROM EMP;
+
+--  N_EMP2 테이블 내용을 다시 복구.
+/*
+TRUNCATE TABLE N_EMP;
+INSERT INTO N_EMP SELECT * FROM EMP;
+*/
+
+-- 사원의 급여를 미리 조회해보기.
+SELECT SAL FROM EMP ORDER BY 1;
+
+-- 18장 PLSQL 커서 592p - 2.2 묵시적 커서 예제
+BEGIN
+    DELETE FROM N_EMP
+    WHERE SAL < 1000;
+    DBMS_OUTPUT.PUT_LINE('=============================================');
+    DBMS_OUTPUT.PUT_LINE('급여가 1000 미만인 행이 '||SQL%ROWCOUNT||'개 삭제되었습니다.');
+    
+    DELETE FROM N_EMP
+    WHERE SAL BETWEEN 1000 AND 2000;
+    DBMS_OUTPUT.PUT_LINE('=============================================');
+    DBMS_OUTPUT.PUT_LINE('급여가 1000~2000인 행이 '||SQL%ROWCOUNT||'개 삭제되었습니다.');
+END;
+/
+
+-- 18장 PLSQL 커서 592p - 2.3 묵시적 커서와 FOR LOOP 예제
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('부서 이름과 건물 위치 정보');
+    DBMS_OUTPUT.PUT_LINE('=============================================');
+    
+    FOR DEPT IN (SELECT DNAME, BUILD
+        FROM DEPARTMENT
+        WHERE BUILD IS NOT NULL
+        ORDER BY 1)
+    LOOP
+        DBMS_OUTPUT.PUT_LINE(DEPT.DNAME||' ---> '||DEPT.BUILD);
+    END LOOP;
+END;
+/
+
+-- 18장 PLSQL 커서 598p - 위의 예제를 명시적 커서를 사용하는 것으로 변환하기.
+DECLARE
+    VDNAME DEPARTMENT.DNAME%TYPE;
+    VBUILD DEPARTMENT.BUILD%TYPE;
+    CURSOR CUR1 IS
+        SELECT DNAME, BUILD
+        FROM DEPARTMENT
+        WHERE BUILD IS NOT NULL
+        ORDER BY 1;
+BEGIN
+    OPEN CUR1;
+    DBMS_OUTPUT.PUT_LINE('※ 부서 이름과 건물 위치 정보');
+    DBMS_OUTPUT.PUT_LINE('==================================================');
+    LOOP
+        FETCH CUR1 INTO VDNAME, VBUILD;
+        EXIT WHEN CUR1%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE('부서 이름 : '||VDNAME||', '||'건물 이름 : '||VBUILD);
+        --DBMS_OUTPUT.PUT_LINE('커서의 ROWCOUNT : '||CUR1%ROWCOUNT);
+    END LOOP;
+    CLOSE CUR1;
+END;
+/
+
+-- 18장 PLSQL 커서 600p - 위의 예제를 명시적 커서와 FOR LOOP 문을 사용하는 것으로 변환하기.
+DECLARE
+    CURSOR CUR1 IS
+        SELECT DNAME, BUILD
+        FROM DEPARTMENT
+        WHERE BUILD IS NOT NULL
+        ORDER BY 1;
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('※ 부서 이름과 건물 위치 정보');
+    DBMS_OUTPUT.PUT_LINE('==================================================');
+    FOR REC IN CUR1
+    LOOP
+        DBMS_OUTPUT.PUT_LINE('부서 이름 : '||REC.DNAME||', '||'건물 이름 : '||REC.BUILD);
+        --DBMS_OUTPUT.PUT_LINE('커서의 ROWCOUNT : '||CUR1%ROWCOUNT);
+    END LOOP;
+END;
+/
+
+-- 시험 공부 예제 - SEQUENCE, EMPNO, ENAME 3개의 컬럼을 가지는 N_EMP2 테이블을 생성하기.
+-- 1. 시퀀스 생성, 2. 테이블 생성, 3. 테이블에 데이터 추가.
+CREATE SEQUENCE SEQ_NUM;
+CREATE TABLE N_EMP2 (
+    ORDNUM NUMBER(10),
+    EMPNO NUMBER(4,0),
+    ENAME VARCHAR2(10)
+);
+
+DECLARE
+    CURSOR CUR1 IS
+        SELECT EMPNO, ENAME
+        FROM EMP;
+BEGIN
+    FOR REC IN CUR1
+    LOOP
+        DBMS_OUTPUT.PUT_LINE('사원번호 : '||REC.EMPNO||', '||'사원이름 : '||REC.ENAME);
+    END LOOP;
+    
+    FOR REC IN CUR1
+    LOOP
+        INSERT INTO N_EMP2 VALUES(SEQ_NUM.NEXTVAL, REC.EMPNO, REC.ENAME);
+    END LOOP;
+END;
+/
+
+-- 20장 PLSQL 서브프로그램 639p - 프로시저 생성하기.
+SELECT *
+FROM N_EMP
+WHERE DEPTNO = 30;
+
+CREATE OR REPLACE PROCEDURE UPDATE_30
+IS
+BEGIN
+    UPDATE N_EMP
+    SET JOB = 'MANAGER'
+    WHERE DEPTNO = 30;
+END;
+/
+
+EXEC UPDATE_30;
+
+-- 20장 PLSQL 서브프로그램 639p - 파라미터가 있는 프로시저 생성하기.
+CREATE OR REPLACE PROCEDURE UPDATE_WITH_DEPTNO
+(NEW_DEPTNO EMP.DEPTNO%TYPE)
+IS
+BEGIN
+    UPDATE N_EMP
+    SET JOB = 'MANAGER'
+    WHERE DEPTNO = NEW_DEPTNO;
+END;
+/
+
+EXEC UPDATE_WITH_DEPTNO(10);
+EXEC UPDATE_WITH_DEPTNO(20);
+
+-- 20장 PLSQL 서브프로그램 640p - 3. 사원 번호를 입력받아 이름과 급여를 출력하는 프로시저.
+CREATE OR REPLACE PROCEDURE ENAME_SAL
+(VEMPNO EMP.EMPNO%TYPE)
+IS
+    VENAME EMP.ENAME%TYPE;
+    VSAL EMP.SAL%TYPE;
+BEGIN
+    SELECT ENAME, SAL INTO VENAME, VSAL
+    FROM EMP
+    WHERE EMPNO = VEMPNO;
+    
+    DBMS_OUTPUT.PUT_LINE('사원 이름 : '||VENAME||', 사원 급여 : '||VSAL);
+END;
+/
+
+EXEC ENAME_SAL(7902);
+
+-- 20장 PLSQL 서브프로그램 640p - 부서 번호를 입력받아 이름과 급여를 출력하는 프로시저.
+CREATE OR REPLACE PROCEDURE ENAME_SAL
+(VDEPTNO EMP.DEPTNO%TYPE)
+IS
+    VENAME EMP.ENAME%TYPE;
+    VSAL EMP.SAL%TYPE;
+    CURSOR CUR1 IS
+        SELECT ENAME, SAL
+        FROM EMP
+        WHERE DEPTNO = VDEPTNO;
+BEGIN
+    OPEN CUR1;
+    LOOP
+        FETCH CUR1 INTO VENAME, VSAL;
+        EXIT WHEN CUR1%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE('사원 이름 : '||VENAME||', 사원 급여 : '||VSAL);
+    END LOOP;
+    CLOSE CUR1;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ENAME_SAL
+(VDEPTNO EMP.DEPTNO%TYPE)
+IS
+    CURSOR CUR1 IS
+        SELECT ENAME, SAL
+        FROM EMP
+        WHERE DEPTNO = VDEPTNO;
+BEGIN
+    FOR REC IN CUR1
+    LOOP
+        DBMS_OUTPUT.PUT_LINE('사원 이름 : '||REC.ENAME||', 사원 급여 : '||REC.SAL);
+    END LOOP;
+END;
+/
+
+-- 커서 선언을 하지 않고, FOR 구문만 사용하기.
+CREATE OR REPLACE PROCEDURE ENAME_SAL
+(VDEPTNO EMP.DEPTNO%TYPE)
+IS
+BEGIN
+    FOR REC IN (SELECT ENAME, SAL
+        FROM EMP
+        WHERE DEPTNO = VDEPTNO)
+    LOOP
+        DBMS_OUTPUT.PUT_LINE('사원 이름 : '||REC.ENAME||', 사원 급여 : '||REC.SAL);
+    END LOOP;
+END;
+/
+
+EXEC ENAME_SAL(10);
+EXEC ENAME_SAL(20);
+EXEC ENAME_SAL(30);
